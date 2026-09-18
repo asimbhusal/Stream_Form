@@ -1,0 +1,181 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Stream Form</title>
+
+    <link rel="stylesheet" href="{% static 'CSS/stream.css' %}">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h2>Add Stream</h2>
+
+        <form id="streamForm">
+
+            {% csrf_token %}
+
+            <label for="stream_name">Stream Name</label>
+
+            <input
+                type="text"
+                id="stream_name"
+                name="stream_name"
+                placeholder="Enter stream name"
+                required
+            >
+
+            <button type="submit" id="saveBtn">
+                Save
+            </button>
+
+        </form>
+
+        <p id="message"></p>
+
+        <hr>
+
+        <h2>Saved Streams</h2>
+
+        <button type="button" id="viewDataBtn">
+            View Data
+        </button>
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Stream Name</th>
+                </tr>
+            </thead>
+
+            <tbody id="streamList">
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    <script>
+
+        const form = document.getElementById("streamForm");
+        const nameInput = document.getElementById("stream_name");
+        const message = document.getElementById("message");
+
+        const viewDataBtn = document.getElementById("viewDataBtn");
+        const streamList = document.getElementById("streamList");
+
+
+        // Save data
+        form.addEventListener("submit", function(event) {
+
+            event.preventDefault();
+
+            const csrfToken = document.querySelector(
+                "[name=csrfmiddlewaretoken]"
+            ).value;
+
+            const formData = new FormData();
+
+            formData.append(
+                "stream_name",
+                nameInput.value
+            );
+
+
+            fetch("/stream/add/", {
+
+                method: "POST",
+
+                headers: {
+                    "X-CSRFToken": csrfToken
+                },
+
+                body: formData
+
+            })
+
+            .then(function(response) {
+                return response.json();
+            })
+
+            .then(function(data) {
+
+                if (data.success) {
+
+                    message.innerText =
+                        "Stream saved successfully";
+
+                    message.style.color = "green";
+
+                    nameInput.value = "";
+
+                } else {
+
+                    message.innerText =
+                        data.message;
+
+                    message.style.color = "red";
+                }
+
+            })
+
+            .catch(function(error) {
+
+                console.log(error);
+
+                message.innerText =
+                    "Something went wrong";
+
+                message.style.color = "red";
+
+            });
+
+        });
+
+
+        // View data
+        viewDataBtn.addEventListener("click", function() {
+
+            fetch("/stream/data/")
+
+            .then(function(response) {
+                return response.json();
+            })
+
+            .then(function(data) {
+
+                streamList.innerHTML = "";
+
+                data.streams.forEach(function(stream) {
+
+                    const row = document.createElement("tr");
+
+                    row.innerHTML = `
+                        <td>${stream.id}</td>
+                        <td>${stream.name}</td>
+                    `;
+
+                    streamList.appendChild(row);
+
+                });
+
+            })
+            .catch(function(error) {
+                console.log(error);
+                message.innerText = "Could not load data";
+                message.style.color = "red";
+            });
+        });
+    </script>
+</body>
+</html>
