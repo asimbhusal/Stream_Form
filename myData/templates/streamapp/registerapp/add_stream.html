@@ -9,7 +9,14 @@
 
     <title>Stream Form</title>
 
+    <!-- CSS -->
     <link rel="stylesheet" href="{% static 'CSS/stream.css' %}">
+
+    <!-- DataTable CSS -->
+    <link
+        rel="stylesheet"
+        href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"
+    >
 </head>
 
 <body>
@@ -22,160 +29,392 @@
 
             {% csrf_token %}
 
-            <label for="stream_name">Stream Name</label>
+            <label for="stream_name">
+                Stream Name
+            </label>
 
             <input
+                
                 type="text"
                 id="stream_name"
                 name="stream_name"
                 placeholder="Enter stream name"
                 required
             >
+            <label for="stream_image">
+                Stream Image
+            </label>
 
+            <input type="file" id="stream_image" name="stream_image" accept="image/*">
+            <img id="preview" src="default-placeholder.jpg" style="display: none;" alt="Preview Image"></img>
+            
             <button type="submit" id="saveBtn">
                 Save
             </button>
-
         </form>
-
+        <button type="submit" id="resetBtn">Reset</button>
         <p id="message"></p>
 
         <hr>
 
         <h2>Saved Streams</h2>
 
-        <button type="button" id="viewDataBtn">
-            View Data
-        </button>
+    <table
+        id="streamTable"
+        class="display"
+        style="width: 100%;"
+    >
 
-        <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Stream Name</th>
+                <th>Profile</th>
+                <th>Action</th>
+            </tr>
+        </thead>
 
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Stream Name</th>
-                </tr>
-            </thead>
+        <tbody>
+        </tbody>
 
-            <tbody id="streamList">
-            </tbody>
-
-        </table>
+    </table>
 
     </div>
 
 
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <!-- DataTable JavaScript -->
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+
     <script>
 
+        // Get HTML elements
         const form = document.getElementById("streamForm");
-        const nameInput = document.getElementById("stream_name");
-        const message = document.getElementById("message");
 
-        const viewDataBtn = document.getElementById("viewDataBtn");
-        const streamList = document.getElementById("streamList");
+        const nameInput =
+            document.getElementById("stream_name");
 
+        const message =
+            document.getElementById("message");
+        
+        const imageInput = document.getElementById("stream_image");
 
-        // Save data
+        const imagePreview = document.getElementById("imagePreview");
+
+        const previewImage = document.getElementById("preview");
+
+    const resetBtn = document.getElementById("resetBtn");
+        
+        let editingId= null;
+        // Initializing the DataTable
+
+        const streamTable = $("#streamTable").DataTable({
+
+            processing: true,
+
+            serverSide: true,
+
+            ajax: {
+                url: "/stream/data/",
+                type: "GET"
+            },
+
+            columns: [
+                {
+                    data: "null",
+                    render: function(data, type, row, meta){
+                        const pageInfo = new $.fn.dataTable.Api(meta.settings).page.info();
+                        return pageInfo.start+ meta.row+1;
+                    },
+                },
+                //{
+                //    data: "id"
+                //},
+                {
+                    data: "name"
+                },
+                {
+                    data: "image", 
+                    render: function(data){
+                        if(data){
+                            return '<img src="'+data+'" alt="Stream Image" width="50" height="30">';
+                        }
+                        return 'No Image';
+                    }
+                },
+                 {
+                data: null,
+                orderable: false,
+                searchable: false,
+
+                render: function(data, type, row) {
+
+                    return `
+                        <button
+                            type="button"
+                            class="deleteBtn"
+                            data-id="${row.id}">
+                            Delete
+                        </button>`;
+                    }
+                }
+            ],
+
+            pageLength: 10
+
+        });
+
+       
+    imageInput.addEventListener("change", function() {
+
+        const file = imageInput.files[0];
+        
+        if (file) {
+            previewImage.src = URL.createObjectURL(file);
+            previewImage.style.display = "block";}});
+        
+        
+
+    
+        // Save stream
         form.addEventListener("submit", function(event) {
 
-            event.preventDefault();
+        event.preventDefault();
 
-            const csrfToken = document.querySelector(
-                "[name=csrfmiddlewaretoken]"
-            ).value;
+        const csrfToken = document.querySelector(
+            "[name=csrfmiddlewaretoken]"
+        ).value;
 
-            const formData = new FormData();
+        const formData = new FormData();
 
-            formData.append(
-                "stream_name",
-                nameInput.value
-            );
+        formData.append(
+            "stream_name",
+            nameInput.value
+        );
+        formData.append(
+            "stream_image",
+            imageInput.files[0]
+        );
 
+        let url;
 
-            fetch("/stream/add/", {
+        if (editingId === null) {
 
-                method: "POST",
+            // Adding new stream
+            url = "/stream/add/";
 
-                headers: {
-                    "X-CSRFToken": csrfToken
-                },
+        } else {
 
-                body: formData
+            // Updating existing stream
+            url = "/stream/update/" + editingId + "/";
 
-            })
+        }
 
-            .then(function(response) {
-                return response.json();
-            })
+        fetch(url, {
 
-            .then(function(data) {
+            method: "POST",
 
-                if (data.success) {
+            headers: {
+                "X-CSRFToken": csrfToken
+            },
 
-                    message.innerText =
-                        "Stream saved successfully";
+            body: formData
 
-                    message.style.color = "green";
+        })
 
-                    nameInput.value = "";
+        .then(function(response) {
 
-                } else {
+            return response.json();
 
-                    message.innerText =
-                        data.message;
+        })
 
-                    message.style.color = "red";
-                }
+        .then(function(data) {
 
-            })
-
-            .catch(function(error) {
-
-                console.log(error);
+            if (data.success) {
 
                 message.innerText =
-                    "Something went wrong";
+                    data.message;
 
-                message.style.color = "red";
+                message.style.color =
+                    "green";
 
-            });
+                message.style.display =
+                    "block";
+
+                // Clear form
+                nameInput.value = "";
+                imageInput.value = "";
+
+                // Return to Add mode
+                editingId = null;
+
+                // Change button back to Save
+                document.getElementById(
+                    "saveBtn"
+                ).innerText = "Save";
+
+                // Reload DataTable
+                streamTable.ajax.reload(
+                    null,
+                    false
+                );
+
+                setTimeout(function() {
+                    message.style.display =
+                        "none";
+                }, 3000);
+
+            }
+
+            else {
+
+                message.innerText =
+                    data.message;
+
+                message.style.color =
+                    "red";
+
+                message.style.display =
+                    "block";
+
+            }
+
+        })
+
+        .catch(function(error) {
+
+            console.log(error);
+
+            message.innerText =
+                "Something went wrong.";
+
+            message.style.color =
+                "red";
+
+            message.style.display =
+                "block";
 
         });
 
+    });
+    $('#streamTable tbody').on('click', 'tr', function() {
 
-        // View data
-        viewDataBtn.addEventListener("click", function() {
+    const rowData = streamTable.row(this).data();
 
-            fetch("/stream/data/")
+    if (rowData) {
 
-            .then(function(response) {
-                return response.json();
-            })
+        editingId = rowData.id;
 
-            .then(function(data) {
+        nameInput.value = rowData.name;
+        if (rowData.image){
+            previewImage.src = rowData.image;
+            previewImage.style.display= "block";}
+        else{
+            previewImage.src = "";
+            previewImage.style.display="null";
+        }
 
-                streamList.innerHTML = "";
 
-                data.streams.forEach(function(stream) {
+        
 
-                    const row = document.createElement("tr");
+       // imageInput.value = rowData.image;
+        //previewImage.value = rowData.image;
 
-                    row.innerHTML = `
-                        <td>${stream.id}</td>
-                        <td>${stream.name}</td>
-                    `;
 
-                    streamList.appendChild(row);
+        // Changing button text to Update but is not implemented for now
+        //document.getElementById("saveBtn").innerText = "Update";
+    }
 
-                });
+    });
+    // Delete Stream
+    $("#streamTable tbody").on("click", ".deleteBtn", function(event) {
 
-            })
-            .catch(function(error) {
-                console.log(error);
-                message.innerText = "Could not load data";
+        // Preventing the normal row click from running
+        event.stopPropagation();
+
+        // Getting ID from clicked Delete button
+        const id = $(this).data("id");
+
+        // Confirmation
+        const confirmed = confirm("Are you sure you want to delete this record?");
+
+        if (!confirmed) {
+            return;
+        }
+
+        const csrfToken = document.querySelector(
+            "[name=csrfmiddlewaretoken]"
+        ).value;
+
+        fetch("/stream/delete/" + id + "/", {
+
+            method: "DELETE",
+
+            headers: {
+                "X-CSRFToken": csrfToken
+            }
+        })
+
+        .then(function(response) {
+            return response.json();
+        })
+
+        .then(function(data) {
+
+            if (data.success) {
+
+                message.innerText = data.message;
+                message.style.color = "green";
+                message.style.display = "block";
+
+                if (editingId == id) {
+
+                    editingId = null;
+                    nameInput.value = "";
+                    imageInput.value = "";
+                }
+
+                // Refresh DataTable
+                streamTable.ajax.reload(
+                    null,
+                    false
+                );
+
+            } else {
+
+                message.innerText = data.message;
                 message.style.color = "red";
-            });
+                message.style.display = "block";
+            }
+
+        })
+
+        .catch(function(error) {
+            console.log(error);
+            message.innerText ="Something went wrong.";
+            message.style.color = "red";
+            message.style.display ="block";
         });
+
+    });
+
+    resetBtn.addEventListener("click", function() {
+
+        editingId = null;
+        nameInput.value = "";
+        imageInput.value = "";
+        //imagePreview.src = "";
+        //imagePreview.style.display = "none";
+        previewImage.src= "";
+        previewImage.style.display = "none";
+        document.getElementById("saveBtn").innerText = "Save";
+    }); 
+    
     </script>
+
 </body>
+
 </html>
